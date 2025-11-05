@@ -1,0 +1,7 @@
+{
+  "name": "OSIS SMK LPPMRI 2 KEDUNGREJA Portal",
+  "description": "A private communication and management platform for the OSIS of SMK LPPMRI 2 Kedungreja, featuring chat, voice notes, and an admin panel.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
