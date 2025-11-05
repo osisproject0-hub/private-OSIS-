@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -31,6 +30,28 @@
         }
       }
     </script>
+  <style>
+    /* Custom Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    /* Custom style for datetime-local icon */
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.8);
+      cursor: pointer;
+    }
+  </style>
   <script type="importmap">
 {
   "imports": {
@@ -42,7 +63,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-950 text-gray-100">
+  <body class="bg-gray-950 text-gray-100 antialiased">
     <div id="root"></div>
   </body>
 </html>

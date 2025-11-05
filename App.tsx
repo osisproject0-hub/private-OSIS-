@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
 import { Profile } from './types';
@@ -12,6 +12,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   logout: () => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -22,37 +23,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user);
-      }
-      setLoading(false);
-    };
-
-    getSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user);
-        } else {
-          setProfile(null);
-        }
-      }
-    );
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, []);
-
-  const fetchProfile = async (user: User) => {
+  const fetchProfile = useCallback(async (user: User) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -64,7 +35,45 @@ export default function App() {
     } else {
       setProfile(data);
     }
-  };
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+        await fetchProfile(user);
+    }
+  }, [user, fetchProfile]);
+
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        await fetchProfile(currentUser);
+      }
+      setLoading(false);
+    };
+
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          await fetchProfile(currentUser);
+        } else {
+          setProfile(null);
+        }
+      }
+    );
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [fetchProfile]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -79,7 +88,7 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, logout: handleLogout }}>
+    <AuthContext.Provider value={{ session, user, profile, logout: handleLogout, refreshProfile }}>
       {session && profile ? <Layout /> : <Login />}
     </AuthContext.Provider>
   );

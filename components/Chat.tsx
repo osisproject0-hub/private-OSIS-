@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../App';
-import { Channel, Message } from '../types';
-import { SendIcon, MicIcon, PhoneIcon, VideoIcon, SpinnerIcon } from './Icons';
+import { Channel, Message, Profile } from '../types';
+import { SendIcon, MicIcon, PhoneIcon, VideoIcon, SpinnerIcon, ImagePlusIcon } from './Icons';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 // --- Sub-components defined in the same file for simplicity ---
@@ -12,7 +12,7 @@ const ChannelList: React.FC<{
   activeChannel: Channel | null;
   onSelectChannel: (channel: Channel) => void;
 }> = ({ channels, activeChannel, onSelectChannel }) => (
-  <div className="w-80 bg-gray-900 p-4 border-r border-gray-800 flex flex-col">
+  <div className="w-64 bg-gray-900 p-4 border-r border-gray-800 flex-col hidden md:flex">
     <h2 className="text-xl font-bold mb-4 px-2">Channels</h2>
     <div className="flex-1 space-y-1 overflow-y-auto">
       {channels.map((channel) => (
@@ -34,6 +34,8 @@ const ChannelList: React.FC<{
 
 const MessageView: React.FC<{ messages: Message[]; userId: string | undefined }> = ({ messages, userId }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  // Fix: Replaced import.meta.env with hardcoded Supabase URL to resolve TypeScript error.
+  const VITE_SUPABASE_URL = 'https://shbkbmkbvktozaargrpz.supabase.co';
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -43,6 +45,12 @@ const MessageView: React.FC<{ messages: Message[]; userId: string | undefined }>
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+
+  const isImageUrl = (url: string) => {
+      if (!VITE_SUPABASE_URL) return false;
+      const publicUrl = `${VITE_SUPABASE_URL}/storage/v1/object/public/chat_images/`;
+      return url.startsWith(publicUrl) && /\.(jpg|jpeg|png|gif|webp)$/.test(url.toLowerCase());
+  }
   
   const AudioPlayer: React.FC<{ src: string }> = ({ src }) => {
       return (
@@ -50,14 +58,6 @@ const MessageView: React.FC<{ messages: Message[]; userId: string | undefined }>
             <audio controls src={src} className="w-full h-10 custom-audio-player">
                 Your browser does not support the audio element.
             </audio>
-            <style>{`
-                .custom-audio-player::-webkit-media-controls-panel { background-color: #374151; }
-                .custom-audio-player::-webkit-media-controls-play-button { color: #f9fafb; }
-                .custom-audio-player::-webkit-media-controls-current-time-display { color: #d1d5db; }
-                .custom-audio-player::-webkit-media-controls-time-remaining-display { color: #d1d5db; }
-                .custom-audio-player::-webkit-media-controls-timeline { background-color: #4b5563; border-radius: 4px; }
-                .custom-audio-player::-webkit-media-controls-volume-slider { background-color: #4b5563; border-radius: 4px; }
-            `}</style>
           </div>
       );
   };
@@ -75,21 +75,25 @@ const MessageView: React.FC<{ messages: Message[]; userId: string | undefined }>
                 className="w-8 h-8 rounded-full object-cover"
               />
               <div
-                className={`max-w-lg p-3 rounded-xl ${
+                className={`max-w-lg p-1 rounded-xl ${
                   isSender
-                    ? 'bg-blue-600 rounded-br-none'
-                    : 'bg-gray-700 rounded-bl-none'
+                    ? 'bg-blue-600'
+                    : 'bg-gray-700'
                 }`}
               >
-                {!isSender && <p className="text-xs font-bold text-blue-300 mb-1">{message.profiles.full_name}</p>}
-                {message.type === 'audio' ? (
-                  <AudioPlayer src={message.content} />
-                ) : (
-                  <p className="text-sm text-gray-100 whitespace-pre-wrap">{message.content}</p>
-                )}
-                <p className={`text-xs mt-1.5 ${isSender ? 'text-blue-200' : 'text-gray-400'} text-right`}>
-                  {formatTime(message.created_at)}
-                </p>
+                <div className="p-2">
+                    {!isSender && <p className="text-xs font-bold text-blue-300 mb-1 px-1">{message.profiles.full_name}</p>}
+                    {message.type === 'audio' ? (
+                      <AudioPlayer src={message.content} />
+                    ) : isImageUrl(message.content) ? (
+                      <img src={message.content} alt="User upload" className="max-w-xs max-h-64 rounded-lg object-cover cursor-pointer" onClick={() => window.open(message.content, '_blank')} />
+                    ) : (
+                      <p className="text-sm text-gray-100 whitespace-pre-wrap px-1">{message.content}</p>
+                    )}
+                    <p className={`text-xs mt-1.5 ${isSender ? 'text-blue-200' : 'text-gray-400'} text-right px-1`}>
+                      {formatTime(message.created_at)}
+                    </p>
+                </div>
               </div>
             </div>
           );
@@ -100,11 +104,11 @@ const MessageView: React.FC<{ messages: Message[]; userId: string | undefined }>
   );
 };
 
-const ChatHeader: React.FC<{ activeChannel: Channel | null }> = ({ activeChannel }) => (
+const ChatHeader: React.FC<{ activeChannel: Channel | null; onlineCount: number }> = ({ activeChannel, onlineCount }) => (
   <header className="flex items-center justify-between p-4 border-b border-gray-800">
     <div>
       <h2 className="text-xl font-bold">{activeChannel ? `# ${activeChannel.name}` : 'Select a channel'}</h2>
-      <p className="text-sm text-gray-400">OSIS Communication Hub</p>
+      <p className="text-sm text-gray-400">{onlineCount} anggota online</p>
     </div>
     <div className="flex items-center gap-4">
         {/* These are UI placeholders for future implementation */}
@@ -118,21 +122,45 @@ const ChatHeader: React.FC<{ activeChannel: Channel | null }> = ({ activeChannel
   </header>
 );
 
+const OnlineMembersList: React.FC<{ onlineUsers: { [key: string]: any[] } }> = ({ onlineUsers }) => {
+    const members = Object.values(onlineUsers).map(presence => presence[0].user);
+
+    return (
+        <div className="w-64 bg-gray-900 p-4 border-l border-gray-800 flex-col hidden lg:flex">
+            <h2 className="text-xl font-bold mb-4 px-2">Online</h2>
+            <div className="flex-1 space-y-3 overflow-y-auto">
+                {members.map(member => (
+                    <div key={member.id} className="flex items-center gap-3 px-2">
+                        <div className="relative">
+                           <img src={member.avatar_url} alt={member.full_name} className="w-8 h-8 rounded-full object-cover" />
+                           <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-gray-900"></span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-300 truncate">{member.full_name}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 // --- Main Chat Component ---
 
 export default function Chat() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const messageChannelRef = useRef<RealtimeChannel | null>(null);
+
+  const [onlineUsers, setOnlineUsers] = useState({});
 
   const fetchChannels = useCallback(async () => {
     const { data, error } = await supabase.from('channels').select('*');
@@ -164,19 +192,19 @@ export default function Chat() {
 
   useEffect(() => {
     fetchChannels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchChannels]);
 
   useEffect(() => {
-    if (activeChannel) {
+    if (activeChannel && profile) {
       fetchMessages(activeChannel.id);
 
       if(messageChannelRef.current) {
         supabase.removeChannel(messageChannelRef.current);
       }
 
-      messageChannelRef.current = supabase
-        .channel(`public:messages:channel_id=eq.${activeChannel.id}`)
+      messageChannelRef.current = supabase.channel(`room:${activeChannel.id}`);
+
+      messageChannelRef.current
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${activeChannel.id}` },
@@ -190,7 +218,18 @@ export default function Chat() {
             else setMessages((prevMessages) => [...prevMessages, {...payload.new, profiles: profileData} as Message]);
           }
         )
-        .subscribe();
+        .on('presence', { event: 'sync' }, () => {
+            const newState = messageChannelRef.current?.presenceState();
+            if (newState) setOnlineUsers(newState);
+        })
+        .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await messageChannelRef.current?.track({
+                    user: { id: profile.id, full_name: profile.full_name, avatar_url: profile.avatar_url },
+                    online_at: new Date().toISOString()
+                });
+            }
+        });
     }
     
     return () => {
@@ -198,7 +237,7 @@ export default function Chat() {
         supabase.removeChannel(messageChannelRef.current);
       }
     };
-  }, [activeChannel, fetchMessages]);
+  }, [activeChannel, fetchMessages, profile]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,6 +245,7 @@ export default function Chat() {
 
     const content = newMessage;
     setNewMessage('');
+    textareaRef.current?.style.removeProperty('height');
 
     const { error } = await supabase.from('messages').insert({
       content,
@@ -225,7 +265,6 @@ export default function Chat() {
     }
   };
 
-
   const handleStartRecording = async () => {
     if (isRecording) {
       mediaRecorderRef.current?.stop();
@@ -236,39 +275,23 @@ export default function Chat() {
         mediaRecorderRef.current = mediaRecorder;
         
         const audioChunks: Blob[] = [];
-        mediaRecorder.ondataavailable = (event) => {
-          audioChunks.push(event.data);
-        };
+        mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
         
         mediaRecorder.onstop = async () => {
-          stream.getTracks().forEach(track => track.stop()); // Stop microphone access
+          stream.getTracks().forEach(track => track.stop());
           setIsRecording(false);
           const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          
-          if (!user || !activeChannel) return;
+          if (!user || !activeChannel || audioBlob.size === 0) return;
 
           const fileName = `voice-note-${Date.now()}.webm`;
-          const { error } = await supabase.storage
-            .from('voice_notes')
-            .upload(fileName, audioBlob);
-            
-          if (error) {
-            console.error('Error uploading voice note:', error);
-            return;
-          }
+          const { error } = await supabase.storage.from('voice_notes').upload(fileName, audioBlob);
+          if (error) { console.error('Error uploading voice note:', error); return; }
 
           const { data: { publicUrl } } = supabase.storage.from('voice_notes').getPublicUrl(fileName);
-
           if(publicUrl) {
-            await supabase.from('messages').insert({
-                content: publicUrl,
-                user_id: user.id,
-                channel_id: activeChannel.id,
-                type: 'audio'
-            });
+            await supabase.from('messages').insert({ content: publicUrl, user_id: user.id, channel_id: activeChannel.id, type: 'audio' });
           }
         };
-        
         mediaRecorder.start();
         setIsRecording(true);
       } catch (err) {
@@ -278,11 +301,30 @@ export default function Chat() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !activeChannel) return;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const { error } = await supabase.storage.from('chat_images').upload(fileName, file);
+
+    if (error) {
+        console.error('Error uploading image:', error);
+        return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('chat_images').getPublicUrl(fileName);
+    if(publicUrl) {
+        await supabase.from('messages').insert({ content: publicUrl, user_id: user.id, channel_id: activeChannel.id, type: 'text' }); // Stored as text type
+    }
+  };
+
   return (
     <div className="flex h-full">
       <ChannelList channels={channels} activeChannel={activeChannel} onSelectChannel={setActiveChannel} />
       <div className="flex-1 flex flex-col bg-gray-950">
-        <ChatHeader activeChannel={activeChannel} />
+        <ChatHeader activeChannel={activeChannel} onlineCount={Object.keys(onlineUsers).length} />
         {loading ? (
              <div className="flex-1 flex items-center justify-center">
                 <SpinnerIcon className="w-8 h-8 text-blue-500" />
@@ -292,6 +334,10 @@ export default function Chat() {
         )}
         <div className="p-4 border-t border-gray-800">
           <form onSubmit={handleSendMessage} className="flex items-start gap-4 bg-gray-800 rounded-xl p-2">
+             <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+             <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2.5 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white self-end transition-colors">
+                <ImagePlusIcon className="w-5 h-5"/>
+            </button>
             <textarea
               ref={textareaRef}
               value={newMessage}
@@ -325,6 +371,7 @@ export default function Chat() {
           </form>
         </div>
       </div>
+      <OnlineMembersList onlineUsers={onlineUsers} />
     </div>
   );
 }

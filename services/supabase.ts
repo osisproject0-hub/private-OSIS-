@@ -14,15 +14,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 This script will set up all the necessary tables, storage, security policies,
 and functions for the OSIS Portal application to work correctly.
 
--- 1. Create storage buckets for voice notes and event images
+-- 1. Create storage buckets for voice notes, event images, chat images, and avatars
 -- Make sure to set policies on these buckets in the Supabase Dashboard
 -- For example, allow authenticated users to upload/download.
 insert into storage.buckets (id, name, public)
-values ('voice_notes', 'voice_notes', true)
-on conflict (id) do nothing;
-
-insert into storage.buckets (id, name, public)
-values ('event_images', 'event_images', true)
+values 
+  ('voice_notes', 'voice_notes', true),
+  ('event_images', 'event_images', true),
+  ('chat_images', 'chat_images', true),
+  ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
 

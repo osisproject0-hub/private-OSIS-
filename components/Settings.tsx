@@ -1,17 +1,20 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../App';
 import { supabase } from '../services/supabase';
-import { SpinnerIcon } from './Icons';
+import { SpinnerIcon, ImagePlusIcon } from './Icons';
 
 export default function Settings() {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,16 +22,36 @@ export default function Settings() {
     setLoadingProfile(true);
     setMessage(null);
 
-    const { error } = await supabase
+    let newAvatarUrl = profile?.avatar_url;
+
+    if (avatarFile) {
+        const fileExt = avatarFile.name.split('.').pop();
+        const filePath = `${user.id}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, avatarFile, { upsert: true });
+
+        if (uploadError) {
+            setMessage({ type: 'error', text: 'Error uploading avatar: ' + uploadError.message });
+            setLoadingProfile(false);
+            return;
+        }
+
+        const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+        newAvatarUrl = `${data.publicUrl}?t=${new Date().getTime()}`; // Add timestamp to break cache
+    }
+
+    const { error: updateError } = await supabase
       .from('profiles')
-      .update({ full_name: fullName })
+      .update({ full_name: fullName, avatar_url: newAvatarUrl })
       .eq('id', user.id);
 
-    if (error) {
-      setMessage({ type: 'error', text: 'Error updating profile: ' + error.message });
+    if (updateError) {
+      setMessage({ type: 'error', text: 'Error updating profile: ' + updateError.message });
     } else {
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
-      // Note: You might need to refresh the profile in the Auth context
+      await refreshProfile();
+      setAvatarFile(null);
     }
     setLoadingProfile(false);
   };
@@ -58,6 +81,18 @@ export default function Settings() {
     setLoadingPassword(false);
   };
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          setAvatarFile(file);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setAvatarPreview(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+      }
+  }
+
   return (
     <div className="flex-1 p-8 overflow-y-auto">
       <header className="mb-8">
@@ -76,13 +111,22 @@ export default function Settings() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4 text-gray-200">Profile Information</h2>
           <form onSubmit={handleProfileUpdate} className="space-y-4">
+             <div className="flex items-center gap-4">
+                <div className="relative">
+                    <img src={avatarPreview || ''} alt="Avatar" className="w-20 h-20 rounded-full object-cover" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-blue-600 p-1.5 rounded-full text-white hover:bg-blue-700">
+                        <ImagePlusIcon className="w-4 h-4" />
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+                </div>
+                <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="fullName">Full Name</label>
+                    <input type="text" id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-gray-200 focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="email">Email</label>
               <input type="email" id="email" value={user?.email || ''} disabled className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-gray-500 cursor-not-allowed"/>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="fullName">Full Name</label>
-              <input type="text" id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-gray-200 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div className="text-right">
               <button type="submit" disabled={loadingProfile} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center min-w-[120px]">

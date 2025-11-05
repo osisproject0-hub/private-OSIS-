@@ -17,14 +17,15 @@ const NavItem: React.FC<{
 }> = ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors duration-200 ${
+    className={`relative flex items-center w-full px-4 py-3 rounded-lg transition-all duration-200 group ${
       isActive
-        ? 'bg-blue-600/20 text-blue-400'
-        : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+        ? 'bg-gray-800 text-white'
+        : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
     }`}
   >
+    <span className={`absolute left-0 top-0 h-full w-1 rounded-r-full bg-blue-500 transition-transform duration-300 ease-in-out ${isActive ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-50'}`}></span>
     {icon}
-    <span className="ml-4 font-medium">{label}</span>
+    <span className="ml-4 font-semibold">{label}</span>
   </button>
 );
 
