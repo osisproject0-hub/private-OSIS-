@@ -51,6 +51,18 @@
       filter: invert(0.8);
       cursor: pointer;
     }
+    /* Custom Audio Player */
+    .custom-audio-player::-webkit-media-controls-panel {
+        background-color: #334155;
+    }
+    .custom-audio-player::-webkit-media-controls-play-button,
+    .custom-audio-player::-webkit-media-controls-volume-slider,
+    .custom-audio-player::-webkit-media-controls-mute-button,
+    .custom-audio-player::-webkit-media-controls-timeline,
+    .custom-audio-player::-webkit-media-controls-current-time-display,
+    .custom-audio-player::-webkit-media-controls-time-remaining-display {
+        filter: invert(1) grayscale(1) brightness(1.5);
+    }
   </style>
   <script type="importmap">
 {
@@ -58,6 +70,7 @@
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
     "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.79.0"
   }
 }

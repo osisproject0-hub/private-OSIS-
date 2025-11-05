@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../App';
 import { Event } from '../types';
-import { SpinnerIcon, PlusIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon } from './Icons';
+import { SpinnerIcon, PlusIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon, CalendarIcon } from './Icons';
 
 const NewEventModal: React.FC<{
     onClose: () => void;
@@ -81,12 +81,13 @@ export default function Events() {
     const [error, setError] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState(new Date());
 
     const fetchEvents = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase.from('events').select('*').order('event_date', { ascending: true });
         if(error) setError(error.message);
-        else setEvents(data);
+        else setEvents(data || []);
         setLoading(false);
     }, []);
 
@@ -107,6 +108,10 @@ export default function Events() {
             return acc;
         }, {} as Record<string, Event[]>);
     }, [events]);
+
+    const selectedDateEvents = useMemo(() => {
+        return eventsByDate[selectedDate.toDateString()] || [];
+    }, [eventsByDate, selectedDate]);
     
     const handleDelete = async (eventId: number) => {
         if(window.confirm("Are you sure you want to delete this event?")) {
@@ -120,7 +125,7 @@ export default function Events() {
     }
 
     return (
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 p-4 md:p-8 overflow-y-auto">
             {showModal && <NewEventModal onClose={() => setShowModal(false)} onEventCreated={fetchEvents} />}
             <header className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
                 <div>
@@ -128,7 +133,7 @@ export default function Events() {
                     <p className="text-md text-gray-400 mt-1">Jadwal kegiatan dan rapat OSIS.</p>
                 </div>
                 {profile?.role === 'admin' && (
-                     <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                     <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 self-start md:self-center">
                         <PlusIcon className="w-5 h-5"/>
                         New Event
                     </button>
@@ -149,45 +154,51 @@ export default function Events() {
                     {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map(day => <div key={day}>{day}</div>)}
                 </div>
                 {loading ? <div className="flex justify-center items-center h-64"><SpinnerIcon className="w-10 h-10 text-blue-500" /></div> :
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-1 md:gap-2">
                     {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`}></div>)}
                     {Array.from({ length: daysInMonth }).map((_, day) => {
                         const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day + 1);
                         const dateString = date.toDateString();
                         const isToday = dateString === new Date().toDateString();
+                        const isSelected = dateString === selectedDate.toDateString();
                         const dailyEvents = eventsByDate[dateString] || [];
                         return (
-                            <div key={day} className={`relative p-2 h-24 rounded-lg flex flex-col ${isToday ? 'bg-blue-900/50' : 'bg-gray-800/50'} border border-transparent hover:border-blue-500 transition-colors`}>
-                                <span className={`font-bold ${isToday ? 'text-blue-400' : ''}`}>{day + 1}</span>
-                                <div className="flex-1 overflow-y-auto mt-1 space-y-1">
-                                    {dailyEvents.map(event => <div key={event.id} className="w-full h-1.5 bg-green-500 rounded-full" title={event.title}></div>)}
+                            <button onClick={() => setSelectedDate(date)} key={day} className={`relative p-2 h-20 md:h-24 rounded-lg flex flex-col focus:outline-none transition-colors duration-200
+                                ${isSelected ? 'bg-blue-600/30 ring-2 ring-blue-500' : isToday ? 'bg-blue-900/50' : 'bg-gray-800/50 hover:bg-gray-800'}`}>
+                                <span className={`font-bold text-sm ${isToday ? 'text-blue-400' : ''}`}>{day + 1}</span>
+                                <div className="flex-1 overflow-y-auto mt-1 flex flex-wrap gap-1">
+                                    {dailyEvents.slice(0, 3).map(event => <div key={event.id} className="w-full h-1.5 bg-green-500 rounded-full" title={event.title}></div>)}
                                 </div>
-                            </div>
+                            </button>
                         );
                     })}
                 </div>}
             </div>
 
             <div className="mt-8">
-                <h2 className="text-2xl font-bold mb-4">Daftar Acara Bulan Ini</h2>
+                <h2 className="text-2xl font-bold mb-4">Agenda untuk {selectedDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
                 <div className="space-y-4">
-                    {events.filter(e => new Date(e.event_date).getMonth() === currentDate.getMonth()).length > 0 ? (
-                        events.filter(e => new Date(e.event_date).getMonth() === currentDate.getMonth()).map(event => (
-                            <div key={event.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-400">{new Date(event.event_date).toLocaleString('id-ID', { weekday: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    {loading ? <div className="flex justify-center items-center py-8"><SpinnerIcon className="w-8 h-8 text-blue-500"/></div> :
+                    selectedDateEvents.length > 0 ? (
+                        selectedDateEvents.map(event => (
+                            <div key={event.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className='flex-1'>
+                                    <p className="text-sm font-medium text-gray-400">{new Date(event.event_date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
                                     <h3 className="text-lg font-bold text-blue-400">{event.title}</h3>
-                                    <p className="text-gray-300 text-sm">{event.description}</p>
+                                    <p className="text-gray-300 text-sm mt-1">{event.description}</p>
                                 </div>
                                 {profile?.role === 'admin' && (
-                                    <button onClick={() => handleDelete(event.id)} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full">
+                                    <button onClick={() => handleDelete(event.id)} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full self-end sm:self-center">
                                         <TrashIcon className="w-5 h-5"/>
                                     </button>
                                 )}
                             </div>
                         ))
                     ) : (
-                        <p className="text-gray-500 text-center py-8">Tidak ada acara yang dijadwalkan untuk bulan ini.</p>
+                        <div className="text-center py-12 bg-gray-900 border border-gray-800 rounded-xl">
+                            <CalendarIcon className="w-12 h-12 mx-auto text-gray-600"/>
+                            <p className="text-gray-500 mt-4">Tidak ada acara yang dijadwalkan untuk hari ini.</p>
+                        </div>
                     )}
                 </div>
             </div>
